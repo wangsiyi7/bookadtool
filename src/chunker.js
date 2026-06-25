@@ -116,7 +116,7 @@ const SEGMENT_SCHEMA = {
   required: ["segments"],
 };
 
-async function analyzeWindow(windowText) {
+async function analyzeWindow(windowText, model) {
   const system =
     "你是一名资深的内容结构分析专家。你会拿到一本书的一段连续文本。" +
     "请基于**语义和主题的连贯性**（而不是页码或机械的字数）把它切分成若干内容块。" +
@@ -126,7 +126,7 @@ async function analyzeWindow(windowText) {
     "按它们在原文中出现的先后顺序排列。请使用与原文一致的语言作答。";
 
   const message = await client.messages.create({
-    model: MODEL,
+    model: model || MODEL,
     max_tokens: 16000,
     system,
     output_config: {
@@ -170,7 +170,7 @@ const THEME_SCHEMA = {
   required: ["bookTitle", "bookSummary", "themes"],
 };
 
-async function clusterSegments(segments, fallbackTitle) {
+async function clusterSegments(segments, fallbackTitle, model) {
   const compact = segments.map((s, i) => ({
     index: i,
     title: s.title,
@@ -186,7 +186,7 @@ async function clusterSegments(segments, fallbackTitle) {
     "约束：每个内容块必须且只能归入一个主题；所有序号都要被覆盖。请使用与内容一致的语言作答。";
 
   const message = await client.messages.create({
-    model: MODEL,
+    model: model || MODEL,
     max_tokens: 16000,
     system,
     output_config: {
@@ -209,7 +209,7 @@ async function clusterSegments(segments, fallbackTitle) {
 
 /* ----------------------------- 主流程 ----------------------------- */
 
-export async function analyzeBook({ title, text, pageBreaks }, onProgress = () => {}) {
+export async function analyzeBook({ title, text, pageBreaks, model }, onProgress = () => {}) {
   if (!text || text.trim().length < 50) {
     throw new Error("文本内容太短，无法分析");
   }
@@ -223,7 +223,7 @@ export async function analyzeBook({ title, text, pageBreaks }, onProgress = () =
     const { text: wText, startChar } = windows[w];
     onProgress({ stage: "analyze", current: w + 1, total: windows.length });
 
-    const segs = await analyzeWindow(wText);
+    const segs = await analyzeWindow(wText, model);
     const normCtx = normalizeWithMap(wText);
 
     // 计算每个段落在窗口内的起始偏移
@@ -269,7 +269,7 @@ export async function analyzeBook({ title, text, pageBreaks }, onProgress = () =
 
   // Reduce：聚类成主题 + 全书总结
   onProgress({ stage: "cluster", segments: allSegments.length });
-  const clustered = await clusterSegments(allSegments, title);
+  const clustered = await clusterSegments(allSegments, title, model);
 
   // 组装层级树，并确保每个段落都被归类（漏掉的放进“其他”）
   const used = new Set();

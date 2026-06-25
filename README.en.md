@@ -237,7 +237,10 @@ Variables supported in `.env`:
 | `OCR_CONCURRENCY` | `3` | Server-side OCR concurrency |
 | `PORT` | `3000` | Web service port |
 
-Frontend constants (`public/js/app.js`): `OCR_MAX_PAGES` (default 60), `OCR_BATCH` (default 5).
+Frontend "⚙ Settings" panel (top-right, persisted in browser localStorage): model
+override, OCR max pages, OCR batch size, OCR render scale, and 3D auto-rotate. The
+model override is sent per request and takes effect for that analysis/OCR run — no
+server restart required.
 
 ## Project Structure
 

@@ -189,6 +189,51 @@ html, body {
 .panel-actions { display: flex; gap: 10px; margin-top: 22px; }
 .panel-actions .btn { flex: 1; }
 
+/* 设置弹窗 */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 10, 18, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+.modal {
+  position: relative;
+  width: 440px;
+  max-width: 92vw;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.modal h2 { margin: 0 0 18px; font-size: 18px; }
+#settings-close {
+  position: absolute; top: 14px; right: 16px;
+  background: none; border: none; color: var(--muted);
+  font-size: 26px; cursor: pointer; line-height: 1;
+}
+#settings-close:hover { color: var(--fg); }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; font-size: 13px; color: #c4ccdd; }
+.field > span:first-child { color: var(--muted); }
+.field input[type="text"],
+.field input[type="number"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: var(--fg);
+  font-size: 14px;
+}
+.field input:focus { outline: none; border-color: var(--accent); }
+.field.checkbox { flex-direction: row; align-items: center; gap: 10px; }
+.field.checkbox input { width: 16px; height: 16px; accent-color: var(--accent); }
+.range-val { color: var(--accent); font-weight: 600; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
 /* 悬浮标签 */
 #hover-label {
   position: fixed;

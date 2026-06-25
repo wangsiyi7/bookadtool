@@ -62,11 +62,11 @@ app.get("/api/health", (req, res) => {
 app.post("/api/analyze", async (req, res) => {
   if (!requireKey(res)) return;
   try {
-    const { title, text, pageBreaks } = req.body || {};
+    const { title, text, pageBreaks, model } = req.body || {};
     if (!text || typeof text !== "string") {
       return res.status(400).json({ error: "缺少 text 字段" });
     }
-    const result = await analyzeBook({ title, text, pageBreaks }, (p) =>
+    const result = await analyzeBook({ title, text, pageBreaks, model }, (p) =>
       console.log("[progress]", JSON.stringify(p))
     );
     res.json(saveBook(result));
@@ -92,12 +92,12 @@ app.post("/api/analyze/stream", async (req, res) => {
     return res.end();
   }
   try {
-    const { title, text, pageBreaks } = req.body || {};
+    const { title, text, pageBreaks, model } = req.body || {};
     if (!text || typeof text !== "string") {
       send("error", { error: "缺少 text 字段" });
       return res.end();
     }
-    const result = await analyzeBook({ title, text, pageBreaks }, (p) =>
+    const result = await analyzeBook({ title, text, pageBreaks, model }, (p) =>
       send("progress", p)
     );
     saveBook(result);
@@ -116,12 +116,14 @@ app.post("/api/analyze/stream", async (req, res) => {
 app.post("/api/ocr", async (req, res) => {
   if (!requireKey(res)) return;
   try {
-    const { images } = req.body || {};
+    const { images, model } = req.body || {};
     if (!Array.isArray(images) || images.length === 0) {
       return res.status(400).json({ error: "缺少 images 数组" });
     }
-    const pages = await ocrImages(images, (p) =>
-      console.log("[ocr]", JSON.stringify(p))
+    const pages = await ocrImages(
+      images,
+      (p) => console.log("[ocr]", JSON.stringify(p)),
+      model
     );
     res.json({ pages });
   } catch (err) {

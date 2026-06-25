@@ -41,13 +41,13 @@ async function mapLimit(items, limit, fn, onEach = () => {}) {
  * @param {{page:number, base64:string, mediaType?:string}[]} images
  * @returns {Promise<{page:number, text:string}[]>}
  */
-export async function ocrImages(images, onProgress = () => {}) {
+export async function ocrImages(images, onProgress = () => {}, model) {
   return mapLimit(
     images,
     OCR_CONCURRENCY,
     async (img) => {
       const message = await client.messages.create({
-        model: MODEL,
+        model: model || MODEL,
         max_tokens: 8000,
         messages: [
           {

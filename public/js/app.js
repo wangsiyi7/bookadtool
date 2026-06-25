@@ -1,5 +1,6 @@
 import * as pdfjsLib from "https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.min.mjs";
 import { BookGraph } from "./viz.js";
+import { getSettings, initSettings } from "./settings.js";
 import {
   downloadChunkText,
   downloadThemeText,
@@ -10,9 +11,6 @@ import {
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
-
-const OCR_MAX_PAGES = 60; // OCR 页数上限，避免扫描书过大时成本失控
-const OCR_BATCH = 5; // 每批发送多少页图片
 
 /* ----------------------------- DOM ----------------------------- */
 const el = (id) => document.getElementById(id);
@@ -31,6 +29,9 @@ let graph = new BookGraph(el("scene"));
 let currentBook = null;
 let selected = null;
 
+// 初始化设置面板，并即时应用（如自动旋转）
+initSettings((s) => graph.setAutoRotate(s.autoRotate));
+
 /* ----------------------------- 上传 ----------------------------- */
 fileInput.addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
@@ -42,6 +43,7 @@ fileInput.addEventListener("change", async (e) => {
 
 async function processPdf(file) {
   try {
+    const settings = getSettings();
     showLoader("正在读取 PDF…", 4);
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -61,7 +63,7 @@ async function processPdf(file) {
     // 2) 文本极少 → 判定为图片型/扫描型 → 走 OCR
     const scanned = fullText.trim().length < Math.max(200, pdf.numPages * 15);
     if (scanned) {
-      const ocr = await runOcr(pdf);
+      const ocr = await runOcr(pdf, settings);
       fullText = ocr.text;
       pageBreaks = ocr.pageBreaks;
     }
@@ -74,7 +76,7 @@ async function processPdf(file) {
     const title = file.name.replace(/\.pdf$/i, "");
     const analyzeBase = scanned ? 72 : 30;
     const book = await analyzeViaStream(
-      { title, text: fullText, pageBreaks },
+      { title, text: fullText, pageBreaks, model: settings.model || undefined },
       analyzeBase
     );
 
@@ -99,10 +101,13 @@ async function processPdf(file) {
 }
 
 /* ----------------------------- OCR 流程 ----------------------------- */
-async function runOcr(pdf) {
-  const total = Math.min(pdf.numPages, OCR_MAX_PAGES);
-  if (pdf.numPages > OCR_MAX_PAGES) {
-    console.warn(`扫描页过多，仅 OCR 前 ${OCR_MAX_PAGES} 页`);
+async function runOcr(pdf, settings) {
+  const maxPages = settings.ocrMaxPages || 60;
+  const batchSize = settings.ocrBatch || 5;
+  const scale = settings.renderScale || 1.6;
+  const total = Math.min(pdf.numPages, maxPages);
+  if (pdf.numPages > maxPages) {
+    console.warn(`扫描页过多，仅 OCR 前 ${maxPages} 页`);
   }
   loaderText.textContent = "检测到图片型 PDF，正在进行 OCR 识别…";
   setProgress(30);
@@ -111,7 +116,7 @@ async function runOcr(pdf) {
   const images = [];
   for (let p = 1; p <= total; p++) {
     const page = await pdf.getPage(p);
-    const viewport = page.getViewport({ scale: 1.6 });
+    const viewport = page.getViewport({ scale });
     const canvas = document.createElement("canvas");
     canvas.width = viewport.width;
     canvas.height = viewport.height;
@@ -125,12 +130,12 @@ async function runOcr(pdf) {
   // 分批送后端 OCR
   const pageTexts = new Array(total).fill("");
   let doneCount = 0;
-  for (let i = 0; i < images.length; i += OCR_BATCH) {
-    const batch = images.slice(i, i + OCR_BATCH);
+  for (let i = 0; i < images.length; i += batchSize) {
+    const batch = images.slice(i, i + batchSize);
     const resp = await fetch("/api/ocr", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ images: batch }),
+      body: JSON.stringify({ images: batch, model: settings.model || undefined }),
     });
     if (!resp.ok) {
       const e = await resp.json().catch(() => ({}));

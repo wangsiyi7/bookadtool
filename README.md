@@ -223,7 +223,9 @@ Claude Code 用户可参考 [`examples/mcp.json`](./examples/mcp.json) 放入项
 | `OCR_CONCURRENCY` | `3` | 服务端 OCR 并发数 |
 | `PORT` | `3000` | Web 服务端口 |
 
-前端常量（`public/js/app.js`）：`OCR_MAX_PAGES`（默认 60）、`OCR_BATCH`（默认 5）。
+前端「⚙ 设置」面板（右上角，配置存于浏览器 localStorage）：模型覆盖、OCR 最大页数、
+OCR 每批页数、OCR 渲染清晰度（scale）、3D 自动旋转。其中「模型覆盖」会随请求下发，
+按本次分析/OCR 生效，无需重启服务。
 
 ## 目录结构
 

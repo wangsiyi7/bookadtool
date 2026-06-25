@@ -142,6 +142,11 @@ export class BookGraph {
     this.lines.push(line);
   }
 
+  setAutoRotate(on) {
+    this._autoRotatePref = on;
+    this.controls.autoRotate = on;
+  }
+
   clear() {
     for (const n of this.nodes) {
       this.scene.remove(n.mesh);
