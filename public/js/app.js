@@ -11,6 +11,9 @@ import {
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
 
+const OCR_MAX_PAGES = 60; // OCR 页数上限，避免扫描书过大时成本失控
+const OCR_BATCH = 5; // 每批发送多少页图片
+
 /* ----------------------------- DOM ----------------------------- */
 const el = (id) => document.getElementById(id);
 const fileInput = el("file-input");
@@ -24,64 +27,59 @@ const legend = el("legend");
 const panel = el("panel");
 const exportBookBtn = el("export-book");
 
-let graph;
+let graph = new BookGraph(el("scene"));
 let currentBook = null;
-let selected = null; // { type, data }
+let selected = null;
 
-/* ----------------------------- 初始化 3D ----------------------------- */
-graph = new BookGraph(el("scene"));
-
-/* ----------------------------- 上传与提取 ----------------------------- */
+/* ----------------------------- 上传 ----------------------------- */
 fileInput.addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
   fileName.textContent = file.name;
   await processPdf(file);
-  fileInput.value = ""; // 允许重复上传同一文件
+  fileInput.value = "";
 });
 
 async function processPdf(file) {
   try {
-    showLoader("正在读取 PDF…", 5);
+    showLoader("正在读取 PDF…", 4);
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
 
+    // 1) 先尝试直接提取文本层
     let fullText = "";
-    const pageBreaks = [];
+    let pageBreaks = [];
     for (let p = 1; p <= pdf.numPages; p++) {
       pageBreaks.push(fullText.length);
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
-      const pageText = content.items.map((it) => it.str).join(" ");
-      fullText += pageText + "\n\n";
-      const pct = 5 + Math.round((p / pdf.numPages) * 35);
-      showLoader(`正在提取文本… 第 ${p}/${pdf.numPages} 页`, pct);
+      fullText += content.items.map((it) => it.str).join(" ") + "\n\n";
+      setProgress(4 + (p / pdf.numPages) * 24);
+      loaderText.textContent = `正在提取文本层… 第 ${p}/${pdf.numPages} 页`;
+    }
+
+    // 2) 文本极少 → 判定为图片型/扫描型 → 走 OCR
+    const scanned = fullText.trim().length < Math.max(200, pdf.numPages * 15);
+    if (scanned) {
+      const ocr = await runOcr(pdf);
+      fullText = ocr.text;
+      pageBreaks = ocr.pageBreaks;
     }
 
     if (fullText.trim().length < 50) {
-      throw new Error(
-        "未能从该 PDF 提取到文本（可能是扫描图片型 PDF，需要 OCR）。"
-      );
+      throw new Error("未能从该 PDF 获取到可用文本。");
     }
 
-    showLoader("AI 正在分析内容并切分语义组块…", 45);
-    const crawl = startCrawl(45, 92);
-
+    // 3) 流式分析（真实进度）
     const title = file.name.replace(/\.pdf$/i, "");
-    const resp = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, text: fullText, pageBreaks }),
-    });
-    clearInterval(crawl);
+    const analyzeBase = scanned ? 72 : 30;
+    const book = await analyzeViaStream(
+      { title, text: fullText, pageBreaks },
+      analyzeBase
+    );
 
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || `分析失败（HTTP ${resp.status}）`);
-    }
-    const book = await resp.json();
-    showLoader("正在构建 3D 可视化…", 98);
-
+    setProgress(99);
+    loaderText.textContent = "正在构建 3D 可视化…";
     currentBook = book;
     graph.render(book, onSelectNode);
 
@@ -89,7 +87,9 @@ async function processPdf(file) {
     welcome.classList.add("hidden");
     legend.classList.remove("hidden");
     exportBookBtn.disabled = false;
-    statusEl.textContent = `${book.stats.themes} 个主题 · ${book.stats.segments} 个内容块`;
+    statusEl.textContent =
+      `${book.stats.themes} 个主题 · ${book.stats.segments} 个内容块` +
+      (scanned ? " · OCR" : "");
   } catch (err) {
     console.error(err);
     hideLoader();
@@ -98,28 +98,144 @@ async function processPdf(file) {
   }
 }
 
-/* ----------------------------- 加载动画 ----------------------------- */
+/* ----------------------------- OCR 流程 ----------------------------- */
+async function runOcr(pdf) {
+  const total = Math.min(pdf.numPages, OCR_MAX_PAGES);
+  if (pdf.numPages > OCR_MAX_PAGES) {
+    console.warn(`扫描页过多，仅 OCR 前 ${OCR_MAX_PAGES} 页`);
+  }
+  loaderText.textContent = "检测到图片型 PDF，正在进行 OCR 识别…";
+  setProgress(30);
+
+  // 逐页渲染为 JPEG
+  const images = [];
+  for (let p = 1; p <= total; p++) {
+    const page = await pdf.getPage(p);
+    const viewport = page.getViewport({ scale: 1.6 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    images.push({ page: p, base64: dataUrl.split(",")[1], mediaType: "image/jpeg" });
+    setProgress(30 + (p / total) * 10);
+    loaderText.textContent = `正在渲染页面… ${p}/${total}`;
+  }
+
+  // 分批送后端 OCR
+  const pageTexts = new Array(total).fill("");
+  let doneCount = 0;
+  for (let i = 0; i < images.length; i += OCR_BATCH) {
+    const batch = images.slice(i, i + OCR_BATCH);
+    const resp = await fetch("/api/ocr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ images: batch }),
+    });
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      throw new Error(e.error || "OCR 失败");
+    }
+    const { pages } = await resp.json();
+    for (const pg of pages) pageTexts[pg.page - 1] = pg.text || "";
+    doneCount += batch.length;
+    setProgress(40 + (doneCount / total) * 30);
+    loaderText.textContent = `OCR 识别中… ${doneCount}/${total} 页`;
+  }
+
+  // 组装全文与页码偏移
+  let text = "";
+  const pageBreaks = [];
+  for (const t of pageTexts) {
+    pageBreaks.push(text.length);
+    text += t + "\n\n";
+  }
+  return { text, pageBreaks };
+}
+
+/* ----------------------- 流式分析（SSE 真实进度） ----------------------- */
+async function analyzeViaStream(payload, base) {
+  const resp = await fetch("/api/analyze/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok || !resp.body) {
+    const e = await resp.json().catch(() => ({}));
+    throw new Error(e.error || `分析失败（HTTP ${resp.status}）`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let result = null;
+  let totalWindows = 1;
+  const span = 99 - base;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const rawEvent = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const { event, data } = parseSSE(rawEvent);
+      if (!event) continue;
+      if (event === "error") throw new Error(data.error || "分析失败");
+      if (event === "result") result = data;
+      if (event === "progress") {
+        if (data.stage === "split") {
+          totalWindows = data.windows || 1;
+          setProgress(base + span * 0.05);
+          loaderText.textContent = `已切分为 ${totalWindows} 个分析窗口…`;
+        } else if (data.stage === "analyze") {
+          const frac = data.current / data.total;
+          setProgress(base + span * (0.1 + frac * 0.75));
+          loaderText.textContent = `AI 语义分析中… 窗口 ${data.current}/${data.total}`;
+        } else if (data.stage === "cluster") {
+          setProgress(base + span * 0.92);
+          loaderText.textContent = "正在聚类主题并生成全书总结…";
+        }
+      }
+    }
+  }
+  if (!result) throw new Error("未收到分析结果");
+  return result;
+}
+
+function parseSSE(raw) {
+  let event = null;
+  let data = null;
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) {
+      try {
+        data = JSON.parse(line.slice(5).trim());
+      } catch {
+        data = null;
+      }
+    }
+  }
+  return { event, data };
+}
+
+/* ----------------------------- 进度 UI ----------------------------- */
 function showLoader(text, pct) {
   welcome.classList.add("hidden");
   loader.classList.remove("hidden");
   loaderText.textContent = text;
-  if (typeof pct === "number") progressBar.style.width = pct + "%";
+  if (typeof pct === "number") setProgress(pct);
 }
 function hideLoader() {
   loader.classList.add("hidden");
-  progressBar.style.width = "0%";
+  setProgress(0);
 }
-// AI 分析期间无法获得真实进度，用缓慢爬升模拟
-function startCrawl(from, to) {
-  let v = from;
-  progressBar.style.width = v + "%";
-  return setInterval(() => {
-    v += (to - v) * 0.04;
-    progressBar.style.width = v.toFixed(1) + "%";
-  }, 600);
+function setProgress(pct) {
+  progressBar.style.width = Math.max(0, Math.min(100, pct)).toFixed(1) + "%";
 }
 
-/* ----------------------------- 节点详情侧栏 ----------------------------- */
+/* ----------------------------- 节点详情 ----------------------------- */
 function onSelectNode(type, data) {
   selected = { type, data };
   panel.classList.remove("hidden");
@@ -177,7 +293,7 @@ el("download-txt").addEventListener("click", () => {
   if (!selected) return;
   if (selected.type === "chunk") downloadChunkText(selected.data);
   else if (selected.type === "theme") downloadThemeText(selected.data);
-  else if (selected.type === "root") exportBookMarkdown(selected.data); // 书籍层用整书导出
+  else if (selected.type === "root") exportBookMarkdown(selected.data);
 });
 
 el("export-md").addEventListener("click", () => {
