@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "bookadtool": {
+      "command": "node",
+      "args": ["./mcp/server.js"],
+      "env": {
+        "ANTHROPIC_API_KEY": "sk-ant-...",
+        "ANTHROPIC_MODEL": "claude-opus-4-8"
+      }
+    }
+  }
+}

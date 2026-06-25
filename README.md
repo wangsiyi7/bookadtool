@@ -14,6 +14,8 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-5b8cff)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
+**简体中文** · [English](./README.en.md)
+
 </div>
 
 ---
@@ -198,6 +200,7 @@ curl -s "http://localhost:3000/api/books/<id>/chunks/t0-c1?format=text"
 }
 ```
 
+Claude Code 用户可参考 [`examples/mcp.json`](./examples/mcp.json) 放入项目根目录的 `.mcp.json`。
 或本地直接运行：`npm run mcp`。
 
 ## 配套 Skill
