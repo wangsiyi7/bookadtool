@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>📚 PDF 智能语义切分 · 3D 组块可视化</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!-- 顶部工具栏 -->
+    <header id="toolbar">
+      <div class="brand">📚 bookadtool</div>
+      <label class="btn primary" id="upload-label">
+        上传 PDF
+        <input type="file" id="file-input" accept="application/pdf" hidden />
+      </label>
+      <span id="file-name" class="muted"></span>
+      <div class="spacer"></div>
+      <button class="btn" id="export-book" disabled>导出全书 Markdown</button>
+      <span id="status" class="muted"></span>
+    </header>
+
+    <!-- 3D 画布 -->
+    <main id="stage">
+      <canvas id="scene"></canvas>
+
+      <!-- 欢迎/空状态 -->
+      <div id="welcome" class="overlay">
+        <div class="welcome-card">
+          <h1>基于内容的智能切分</h1>
+          <p>
+            上传一本大部头 PDF，AI 会依据<strong>语义与主题</strong>（而非简单的章节/页数）
+            把它切分为相互关联的内容组块，并在 3D 空间中可视化呈现。
+          </p>
+          <ul>
+            <li>🧠 AI 分析内容 → 切分为语义子节点</li>
+            <li>🌐 Three.js 3D 引擎呈现节点关系</li>
+            <li>⬇️ 点击节点即可下载原文 / 导出 Markdown</li>
+            <li>📝 每个节点都附带 AI 生成的内容总结</li>
+          </ul>
+          <p class="hint">点击左上角「上传 PDF」开始。</p>
+        </div>
+      </div>
+
+      <!-- 加载进度 -->
+      <div id="loader" class="overlay hidden">
+        <div class="loader-card">
+          <div class="spinner"></div>
+          <div id="loader-text">正在处理…</div>
+          <div class="progress"><div id="progress-bar"></div></div>
+        </div>
+      </div>
+
+      <!-- 图例 -->
+      <div id="legend" class="hidden">
+        <div><span class="dot root"></span>书籍</div>
+        <div><span class="dot theme"></span>主题</div>
+        <div><span class="dot chunk"></span>内容块</div>
+        <div class="legend-tip">拖拽旋转 · 滚轮缩放 · 点击节点查看</div>
+      </div>
+    </main>
+
+    <!-- 节点详情侧栏 -->
+    <aside id="panel" class="hidden">
+      <button id="panel-close" title="关闭">×</button>
+      <div id="panel-kind" class="kind"></div>
+      <h2 id="panel-title"></h2>
+      <div id="panel-meta" class="meta"></div>
+      <div id="panel-keywords" class="keywords"></div>
+      <h3>总结</h3>
+      <p id="panel-summary"></p>
+      <div id="panel-content-wrap">
+        <h3>内容预览</h3>
+        <pre id="panel-content"></pre>
+      </div>
+      <div class="panel-actions">
+        <button class="btn" id="download-txt">下载原文 (.txt)</button>
+        <button class="btn primary" id="export-md">导出 Markdown (.md)</button>
+      </div>
+    </aside>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>
