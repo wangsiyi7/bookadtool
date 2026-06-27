@@ -119,7 +119,22 @@
 
 > 加密/带权限保护的 PDF 需先解除限制；纯矢量图无文字的页面无法识别出文本。
 
-## 快速开始
+## 一键部署
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/wangsiyi7/bookadtool&env=ANTHROPIC_API_KEY&envDescription=Anthropic%20API%20Key%EF%BC%88%E5%88%86%E6%9E%90%E4%B8%8E%20OCR%20%E5%BF%85%E9%9C%80%EF%BC%89&project-name=bookadtool&repository-name=bookadtool)
+
+项目已内置 `vercel.json`，可直接部署到 [Vercel](https://vercel.com)：
+
+1. 点击上方按钮（或在 Vercel 导入本仓库）。
+2. 在环境变量中填入 **`ANTHROPIC_API_KEY`**（必填，否则分析/OCR 会返回 500）。
+   可选：`ANTHROPIC_MODEL`、`ANTHROPIC_OCR_MODEL`。
+3. 部署完成后即可访问分配的 `*.vercel.app` 链接。
+
+> 无服务器环境注意事项：单次函数最长 60s（`vercel.json` 已配置），超大书籍建议本地运行；
+> 请求体上限约 4.5MB（影响超大文本/单批 OCR 图片，可在「⚙ 设置」里调小「OCR 每批页数」）；
+> `/api/books` 内存缓存在无服务器下不跨实例持久化（Web 端浏览/下载不受影响，结果在前端内存中）。
+
+## 快速开始（本地）
 
 ```bash
 # 1. 安装依赖

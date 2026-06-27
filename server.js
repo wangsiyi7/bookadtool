@@ -191,9 +191,14 @@ app.post("/api/export", (req, res) => {
   res.type("text/markdown; charset=utf-8").send(md);
 });
 
-app.listen(PORT, () => {
-  console.log(`📚 bookadtool 已启动： http://localhost:${PORT}`);
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn("⚠️  未检测到 ANTHROPIC_API_KEY，请在 .env 中配置后再使用分析功能。");
-  }
-});
+// 本地直接运行时才监听端口；在 Vercel（无服务器）环境下导出 app 作为函数处理器。
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`📚 bookadtool 已启动： http://localhost:${PORT}`);
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.warn("⚠️  未检测到 ANTHROPIC_API_KEY，请在 .env 中配置后再使用分析功能。");
+    }
+  });
+}
+
+export default app;

@@ -131,7 +131,24 @@ The tool handles two PDF types via different paths and **auto-detects** which ap
 > Encrypted/permission-protected PDFs must be unlocked first; pages that are pure vector
 > art with no text cannot yield recognizable text.
 
-## Quick Start
+## One-Click Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/wangsiyi7/bookadtool&env=ANTHROPIC_API_KEY&envDescription=Anthropic%20API%20Key%20(required%20for%20analysis%20%26%20OCR)&project-name=bookadtool&repository-name=bookadtool)
+
+A `vercel.json` is included, so the app deploys to [Vercel](https://vercel.com) out of the box:
+
+1. Click the button above (or import this repo in Vercel).
+2. Set the **`ANTHROPIC_API_KEY`** environment variable (required, or analysis/OCR returns 500).
+   Optional: `ANTHROPIC_MODEL`, `ANTHROPIC_OCR_MODEL`.
+3. After deployment, open the assigned `*.vercel.app` link.
+
+> Serverless notes: per-invocation limit is 60s (configured in `vercel.json`) — run locally for
+> very large books; request body cap is ~4.5MB (affects huge text / a single OCR batch — lower
+> "OCR batch size" in ⚙ Settings); the `/api/books` in-memory cache does not persist across
+> instances in serverless (browsing/downloading in the web UI is unaffected since results live
+> in the frontend's memory).
+
+## Quick Start (Local)
 
 ```bash
 # 1. Install dependencies
